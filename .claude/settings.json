@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(env)",
+      "Bash(GIT_TRACE=1 git push -u origin main)",
+      "Bash(git pull *)",
+      "Bash(awk '{print $NF}')",
+      "Bash(rm -f .DS_Store .gitignore README.md index.html package-lock.json package.json tsconfig.json vite.config.ts)"
+    ],
+    "additionalDirectories": [
+      "/Users/wangshilin/Documents/Postgraduate/haihe"
+    ]
+  }
+}
