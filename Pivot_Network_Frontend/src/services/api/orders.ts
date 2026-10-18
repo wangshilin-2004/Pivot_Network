@@ -1,47 +1,57 @@
-import { useMock } from './client'
+import { apiRequest, delay, useMock } from './client'
+import type { OrderActivationPayload, OrderPayload } from './mappers'
 
-function delay(ms = 200) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export interface CreateOrderPayload {
+export interface CreateOrderInput {
   offerId: string
-  duration: number
+  durationMinutes: number
 }
 
-export interface OrderResponse {
-  id: string
-  offerId: string
-  status: string
-  duration: number
-}
-
-export async function createOrder(payload: CreateOrderPayload): Promise<OrderResponse> {
+export async function createOrder(input: CreateOrderInput): Promise<OrderPayload> {
   if (useMock) {
     await delay()
+    const now = new Date().toISOString()
     return {
-      id: `order-${Date.now().toString().slice(-6)}`,
-      offerId: payload.offerId,
-      status: 'active',
-      duration: payload.duration,
+      id: `order-mock-${Date.now().toString().slice(-6)}`,
+      buyer_user_id: 'user-01',
+      offer_id: input.offerId,
+      status: 'created',
+      requested_duration_minutes: input.durationMinutes,
+      price_snapshot: { currency: 'CNY', hourly_price: 0, unit: 'hour' },
+      runtime_bundle_status: 'placeholder_pending',
+      access_grant_id: null,
+      created_at: now,
+      updated_at: now,
     }
   }
-  const res = await fetch('http://localhost:8000/orders', {
+  return apiRequest<OrderPayload>('/orders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ offer_id: payload.offerId, requested_duration_minutes: payload.duration }),
+    body: { offer_id: input.offerId, requested_duration_minutes: input.durationMinutes },
   })
-  if (!res.ok) throw new Error(`POST /orders ${res.status}`)
-  return res.json()
 }
 
-export async function activateOrder(orderId: string): Promise<{ grantId: string; grantCode: string }> {
+export async function activateOrder(orderId: string): Promise<OrderActivationPayload> {
   if (useMock) {
     await delay()
-    return { grantId: `grant-${Date.now().toString().slice(-6)}`, grantCode: `GRANT-${Date.now().toString().slice(-6)}` }
+    const now = new Date().toISOString()
+    const order = await createOrder({ offerId: 'mock-offer', durationMinutes: 180 })
+    return {
+      order,
+      access_grant: {
+        id: `grant-mock-${Date.now().toString().slice(-6)}`,
+        grant_id: `grant-mock-${Date.now().toString().slice(-6)}`,
+        grant_code: `GRANT-${Date.now().toString().slice(-6)}`,
+        buyer_user_id: order.buyer_user_id,
+        order_id: order.id,
+        runtime_session_id: null,
+        status: 'issued',
+        grant_type: 'placeholder',
+        connect_material_payload: {},
+        issued_at: now,
+        expires_at: now,
+        activated_at: null,
+        revoked_at: null,
+      },
+    }
   }
-  const res = await fetch(`http://localhost:8000/orders/${orderId}/activate`, { method: 'POST' })
-  if (!res.ok) throw new Error(`POST /orders/${orderId}/activate ${res.status}`)
-  const json = await res.json()
-  return json.access_grant ?? json
+  return apiRequest<OrderActivationPayload>(`/orders/${encodeURIComponent(orderId)}/activate`, { method: 'POST' })
 }

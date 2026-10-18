@@ -1,31 +1,48 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { useMock } from '../services/api/client'
+import { fetchNodes, fetchSwarmSummary, fetchTrend } from '../services/api/nodes'
+import { nodesMock, trendMock } from '../services/mock/platform.mock'
 import type { NodeStatus, TrendPoint } from '../types/domain'
-import { fetchNodes, fetchTrend } from '../services/api/nodes'
+import { useConnectionStore } from './connection'
 
 export const useMonitorStore = defineStore('monitor', () => {
   const nodes = ref<NodeStatus[]>([])
   const trend = ref<TrendPoint[]>([])
-  const loading = ref(true)
+  const swarmState = ref<string>('unknown')
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
   const summary = computed(() => ({
     onlineNodes: nodes.value.length,
-    avgGpuUsage: nodes.value.length ? Math.round(nodes.value.reduce((s, n) => s + n.gpuUsage, 0) / nodes.value.length) : 0,
+    avgGpuUsage: nodes.value.length
+      ? Math.round(nodes.value.reduce((total, node) => total + node.gpuUsage, 0) / nodes.value.length)
+      : 0,
   }))
 
-  async function loadMonitorData() {
+  const warnedNodes = computed(() => nodes.value.filter((node) => node.status !== 'healthy'))
+
+  async function loadMonitorData(): Promise<void> {
     loading.value = true
+    error.value = null
     try {
-      const [n, t] = await Promise.all([fetchNodes(), fetchTrend()])
-      nodes.value = n
-      trend.value = t
+      const loadedNodes = await fetchNodes()
+      nodes.value = loadedNodes
+      const [loadedTrend, swarm] = await Promise.all([fetchTrend(loadedNodes), fetchSwarmSummary()])
+      trend.value = loadedTrend
+      swarmState.value = swarm.state
+      if (!useMock) useConnectionStore().markConnected()
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : String(cause)
+      useConnectionStore().markDegraded(cause)
+      nodes.value = structuredClone(nodesMock)
+      trend.value = structuredClone(trendMock)
     } finally {
       loading.value = false
     }
   }
 
-  // 初始化加载
   loadMonitorData()
 
-  return { nodes, trend, summary, loading, loadMonitorData }
+  return { nodes, trend, swarmState, loading, error, summary, warnedNodes, loadMonitorData }
 })

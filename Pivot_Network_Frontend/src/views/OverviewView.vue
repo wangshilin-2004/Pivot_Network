@@ -3,11 +3,19 @@ import { computed } from 'vue'
 import { useOfferStore } from '../stores/offers'
 import { useSessionStore } from '../stores/session'
 import { useMonitorStore } from '../stores/monitor'
+import { useConnectionStore } from '../stores/connection'
 import PageHeader from '../components/common/PageHeader.vue'
 
 const offers = useOfferStore()
 const session = useSessionStore()
 const monitor = useMonitorStore()
+const connection = useConnectionStore()
+
+const description = computed(() => {
+  if (connection.state === 'connected') return '一屏掌握资源供给、会话运行与集群负载。当前数据来自真实后端接口。'
+  if (connection.state === 'degraded') return '一屏掌握资源供给、会话运行与集群负载。后端暂不可用，当前展示回退的演示数据。'
+  return '一屏掌握资源供给、会话运行与集群负载。演示数据来自前端内置 Mock 服务。'
+})
 
 const activeSessions = computed(() => (session.session.status === '运行中' ? 1 : 0))
 
@@ -50,7 +58,7 @@ const offerRows = computed(() => offers.offers.slice(0, 3))
       <PageHeader
         eyebrow="Overview"
         title="平台总览"
-        description="一屏掌握资源供给、会话运行与集群负载。数据来自前端 Mock 服务，用于演示完整业务链路。"
+        :description="description"
       >
         <RouterLink to="/marketplace" class="btn btn--primary">选购资源</RouterLink>
         <RouterLink to="/session" class="btn btn--secondary">当前会话</RouterLink>

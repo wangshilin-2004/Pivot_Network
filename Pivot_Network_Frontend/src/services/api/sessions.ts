@@ -1,42 +1,26 @@
-import { useMock } from './client'
-import { sessionMock } from '../mock/platform.mock'
-import type { RuntimeSession } from '../../types/domain'
+import { apiRequest, delay, useMock } from './client'
+import type { RuntimeSessionPayload } from './mappers'
 
-function delay(ms = 200) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export async function fetchSession(id: string): Promise<RuntimeSession | null> {
+export async function fetchSession(id: string): Promise<RuntimeSessionPayload> {
   if (useMock) {
     await delay()
-    return structuredClone(sessionMock)
+    throw new Error('mock 模式下不调用运行时接口')
   }
-  const res = await fetch(`http://localhost:8000/runtime-sessions/${id}`)
-  if (!res.ok) throw new Error(`GET /runtime-sessions/${id} ${res.status}`)
-  return res.json()
+  return apiRequest<RuntimeSessionPayload>(`/runtime-sessions/${encodeURIComponent(id)}`)
 }
 
-export async function heartbeatSession(id: string): Promise<RuntimeSession | null> {
+export async function heartbeatSession(id: string): Promise<RuntimeSessionPayload> {
   if (useMock) {
     await delay()
-    const s = structuredClone(sessionMock)
-    s.logs.unshift('会话保活成功，运行状态已刷新。')
-    return s
+    throw new Error('mock 模式下不调用运行时接口')
   }
-  const res = await fetch(`http://localhost:8000/runtime-sessions/${id}/heartbeat`, { method: 'POST' })
-  if (!res.ok) throw new Error(`POST /runtime-sessions/${id}/heartbeat ${res.status}`)
-  return res.json()
+  return apiRequest<RuntimeSessionPayload>(`/runtime-sessions/${encodeURIComponent(id)}/heartbeat`, { method: 'POST' })
 }
 
-export async function stopSession(id: string): Promise<RuntimeSession | null> {
+export async function stopSession(id: string): Promise<RuntimeSessionPayload> {
   if (useMock) {
     await delay()
-    const s = structuredClone(sessionMock)
-    s.status = '已暂停'
-    s.runtimeBundleStatus = 'suspended'
-    return s
+    throw new Error('mock 模式下不调用运行时接口')
   }
-  const res = await fetch(`http://localhost:8000/runtime-sessions/${id}/stop`, { method: 'POST' })
-  if (!res.ok) throw new Error(`POST /runtime-sessions/${id}/stop ${res.status}`)
-  return res.json()
+  return apiRequest<RuntimeSessionPayload>(`/runtime-sessions/${encodeURIComponent(id)}/stop`, { method: 'POST' })
 }

@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     project_name: str = "Plantform Backend"
     project_version: str = "0.1.0"
     debug: bool = False
+    # Local demo switch: when true the API never calls the Docker_Swarm_Adapter
+    # (http://127.0.0.1:8010 by default) and uses the in-process demo adapter
+    # instead, so the buyer trade chain and node pages work without Docker.
+    demo_mode: bool = False
     api_v1_prefix: str = "/api/v1"
     app_port: int = 8000
     postgres_host: str = "localhost"

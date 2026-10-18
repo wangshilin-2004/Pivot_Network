@@ -1,67 +1,108 @@
-import { useMock } from './client'
+/**
+ * 认证 API：演示环境没有登录页，前端启动时用种子账号自动登录，
+ * 之后的订单/授权/会话请求都带 Authorization: Bearer <token>。
+ */
+import { apiRequest, getToken, setToken, useMock } from './client'
 
-function delay(ms = 200) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export interface UserInfo {
+export interface BackendUser {
   id: string
   email: string
-  displayName: string
-  role: 'buyer' | 'seller' | 'admin'
+  display_name: string
+  role: string
+  status: string
+  created_at: string
+  updated_at: string
 }
 
-export interface AuthResponse {
-  accessToken: string
-  tokenType: string
-  expiresAt: string
-  user: UserInfo
+export interface AuthSessionPayload {
+  access_token: string
+  token_type: string
+  expires_at: string
+  user: BackendUser
 }
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  if (useMock) {
-    await delay()
-    return {
-      accessToken: 'mock-token-' + Date.now(),
-      tokenType: 'bearer',
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      user: { id: 'user-01', email, displayName: '演示用户', role: 'buyer' },
-    }
-  }
-  const res = await fetch('http://localhost:8000/auth/login', {
+export const demoCredentials = {
+  email: (import.meta.env.VITE_DEMO_EMAIL as string | undefined) ?? 'demo@pivot.local',
+  password: (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) ?? 'demo1234',
+}
+
+let currentUser: BackendUser | null = null
+
+export function getCurrentUser(): BackendUser | null {
+  return currentUser
+}
+
+function applyAuthSession(payload: AuthSessionPayload): AuthSessionPayload {
+  setToken(payload.access_token)
+  currentUser = payload.user
+  return payload
+}
+
+export async function login(email: string, password: string): Promise<AuthSessionPayload> {
+  const payload = await apiRequest<AuthSessionPayload>('/auth/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: { email, password },
+    auth: false,
   })
-  if (!res.ok) throw new Error(`POST /auth/login ${res.status}`)
-  return res.json()
+  return applyAuthSession(payload)
 }
 
-export async function register(email: string, displayName: string, password: string, role = 'buyer'): Promise<AuthResponse> {
-  if (useMock) {
-    await delay()
-    return {
-      accessToken: 'mock-token-' + Date.now(),
-      tokenType: 'bearer',
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      user: { id: 'user-01', email, displayName, role: role as 'buyer' | 'seller' },
-    }
-  }
-  const res = await fetch('http://localhost:8000/auth/register', {
+export async function register(
+  email: string,
+  displayName: string,
+  password: string,
+  role = 'buyer',
+): Promise<AuthSessionPayload> {
+  const payload = await apiRequest<AuthSessionPayload>('/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, display_name: displayName, password, role }),
+    body: { email, display_name: displayName, password, role },
+    auth: false,
   })
-  if (!res.ok) throw new Error(`POST /auth/register ${res.status}`)
-  return res.json()
+  return applyAuthSession(payload)
 }
 
-export async function fetchCurrentUser(): Promise<UserInfo | null> {
-  if (useMock) {
-    await delay()
-    return { id: 'user-01', email: 'demo@example.com', displayName: '演示用户', role: 'buyer' }
+export async function fetchCurrentUser(): Promise<BackendUser | null> {
+  if (!getToken()) return null
+  try {
+    const user = await apiRequest<BackendUser>('/auth/me')
+    currentUser = user
+    return user
+  } catch {
+    setToken(null)
+    currentUser = null
+    return null
   }
-  const res = await fetch('http://localhost:8000/auth/me')
-  if (!res.ok) throw new Error(`GET /auth/me ${res.status}`)
-  return res.json()
+}
+
+let ensurePromise: Promise<BackendUser | null> | null = null
+
+/**
+ * 确保处于已登录状态（真实后端模式）。
+ * - 优先复用 localStorage 中的 token；
+ * - 失效时用演示账号登录；
+ * - 演示账号不存在时自动注册。
+ * mock 模式直接返回 null。
+ */
+export function ensureAuth(): Promise<BackendUser | null> {
+  if (useMock) return Promise.resolve(null)
+  if (!ensurePromise) {
+    ensurePromise = (async () => {
+      const existing = await fetchCurrentUser()
+      if (existing) return existing
+      try {
+        const session = await login(demoCredentials.email, demoCredentials.password)
+        return session.user
+      } catch (loginError) {
+        try {
+          const session = await register(demoCredentials.email, '演示买家', demoCredentials.password)
+          return session.user
+        } catch {
+          throw loginError
+        }
+      }
+    })().finally(() => {
+      ensurePromise = null
+    })
+  }
+  return ensurePromise
 }

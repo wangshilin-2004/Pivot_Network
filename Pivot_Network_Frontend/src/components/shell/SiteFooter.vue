@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { navItems } from '../../router/nav'
+import { useConnectionStore } from '../../stores/connection'
 
 const year = new Date().getFullYear()
+const connection = useConnectionStore()
+const connected = connection.modeLabel
 </script>
 
 <template>
@@ -40,7 +43,9 @@ const year = new Date().getFullYear()
 
       <div class="footer-bottom">
         <span>© {{ year }} Pivot Network · 毕业设计项目</span>
-        <span class="footer-note">算力交易与运行平台 · 演示数据由前端 Mock 提供</span>
+        <span class="footer-note">
+          {{ connected }} · {{ connection.apiLabel }}
+        </span>
       </div>
     </div>
   </footer>

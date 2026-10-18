@@ -9,24 +9,25 @@ import TaskCard from '../components/cards/TaskCard.vue'
 const session = useSessionStore()
 
 const confirming = ref(false)
-const ended = ref(false)
 
-const runningSessions = computed(() => (session.session.status === '运行中' && !ended.value ? 1 : 0))
+const idle = computed(() => session.session.id === '—')
+const ended = computed(() => ['已结束', '已暂停', '运行异常'].includes(session.session.status))
+const runningSessions = computed(() => (session.isLive ? 1 : 0))
 const doneTasks = computed(() => session.session.tasks.filter((task) => task.status === '完成').length)
 
-const statusLabel = computed(() => (ended.value ? '已结束' : session.session.status))
+const statusLabel = computed(() => session.session.status)
 const statusTone = computed(() => {
-  if (ended.value) return 'plain' as const
-  if (session.session.status === '运行中') return 'green' as const
+  if (session.isLive) return 'green' as const
   if (session.session.status === '已暂停') return 'orange' as const
+  if (session.session.status === '运行异常') return 'red' as const
   return 'plain' as const
 })
 
-const heroNote = computed(() =>
-  ended.value
-    ? '会话已结束，运行时隧道已关闭，可回到资源市场新建会话。'
-    : `${session.session.algorithmName} 正在 ${session.session.offerTitle} 上运行，共 ${runningSessions.value} 个活跃会话。`,
-)
+const heroNote = computed(() => {
+  if (idle.value) return '还没有运行中的会话。在资源市场选择实例下单，平台会自动签发 AccessGrant 并编排 RuntimeSession。'
+  if (ended.value) return '会话已结束或暂停，运行时隧道已关闭，可回到资源市场新建会话。'
+  return `${session.session.algorithmName} 正在 ${session.session.offerTitle} 上运行，共 ${runningSessions.value} 个活跃会话。`
+})
 
 function requestEnd() {
   confirming.value = true
@@ -36,9 +37,13 @@ function cancelEnd() {
   confirming.value = false
 }
 
-function confirmEnd() {
+async function confirmEnd() {
   confirming.value = false
-  ended.value = true
+  await session.stopSession()
+  if (session.error) {
+    /* 失败原因由 store.error 记录，页面在顶部提示条展示 */
+    confirming.value = false
+  }
 }
 
 function workspaceTone(status: string) {
@@ -68,14 +73,16 @@ function workspaceIcon(type: string) {
           <button class="btn btn--secondary" type="button" @click="confirmEnd">确认结束</button>
         </template>
         <template v-else>
-          <button class="btn btn--secondary" type="button" :disabled="ended" @click="requestEnd">
+          <button class="btn btn--secondary" type="button" :disabled="ended || idle" @click="requestEnd">
             结束会话
           </button>
-          <button class="btn btn--primary" type="button" :disabled="ended" @click="session.startTask()">
+          <button class="btn btn--primary" type="button" :disabled="ended || idle" @click="session.startTask()">
             启动任务
           </button>
         </template>
       </PageHeader>
+
+      <p v-if="session.error" class="session-error" role="alert">{{ session.error }}</p>
 
       <section v-reveal class="panel panel--pad session-hero">
         <div class="hero-top">
@@ -90,7 +97,7 @@ function workspaceIcon(type: string) {
           <button
             class="btn btn--ghost hero-refresh"
             type="button"
-            :disabled="ended"
+            :disabled="ended || idle"
             @click="session.refreshSession()"
           >
             刷新状态 ›
@@ -203,7 +210,7 @@ function workspaceIcon(type: string) {
           <button
             class="btn btn--secondary btn--block tasks-start"
             type="button"
-            :disabled="ended"
+            :disabled="ended || idle"
             @click="session.startTask()"
           >
             启动主任务
@@ -270,6 +277,18 @@ function workspaceIcon(type: string) {
   color: var(--orange);
   font-size: var(--fs-sm);
   line-height: 1.5;
+}
+
+.session-error {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 69, 58, 0.28);
+  background: rgba(255, 69, 58, 0.08);
+  color: var(--red);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .hero-kv {

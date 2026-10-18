@@ -8,6 +8,9 @@ Seller → Verified Node → Offer → Order → AccessGrant → RuntimeSession 
 
 > 前端 V2 已按 **Apple 发布会风格**完成重构：纯黑舞台、玻璃面板、滚动驱动动效、⌘K 命令面板，并新增发布会式首页 `/`。
 > 设计契约见 [Apple发布会风格设计系统.md](Pivot_Network_Frontend/文档/Apple发布会风格设计系统.md)，需求依据见 [需求调研与功能分析](Pivot_Network_Frontend/文档/需求调研与功能分析-苹果发布会风格重构.md)，验收结论见 [重构验收报告](Pivot_Network_Frontend/文档/重构验收报告.md)。
+>
+> 前端已支持 **mock / 真实后端双模式**：默认 `npm run dev` 无需后端即可完整浏览；`npm run dev:real` 直连本机 FastAPI，
+> 下单、授权、RuntimeSession 全部走真实接口（后端可无 Docker 一键启动，见下文「本机演示」）。
 
 ## 仓库结构
 
@@ -56,6 +59,12 @@ Seller → Verified Node → Offer → Order → AccessGrant → RuntimeSession 
 |---|---|
 | ![卖家控制台](Pivot_Network_Frontend/文档/截图/seller-desktop.png) | ![会话中心](Pivot_Network_Frontend/文档/截图/session-desktop.png) |
 
+真实后端模式（联调时截图，会话 ID 与授权码均来自真实接口）：
+
+| 资源市场（真实数据） | 会话中心（真实 RuntimeSession） |
+|---|---|
+| ![真实资源市场](Pivot_Network_Frontend/文档/截图/real-backend-marketplace.png) | ![真实会话](Pivot_Network_Frontend/文档/截图/real-backend-session.png) |
+
 ### 后端 `Pivot_Network_Backend/`
 
 - **Plantform_Backend/**: FastAPI + PostgreSQL 业务真相面
@@ -95,6 +104,27 @@ docker compose up -d --build
 
 完整链路还需要配置 Docker Swarm + Adapter + WireGuard，详见 `Pivot_Network_Backend/README.md`。
 
+### 本机演示（无需 Docker，前后端真实联调）
+
+适合答辩现场：一条命令起 PostgreSQL + FastAPI，前端切换真实后端模式即可走通
+「登录 → 下单 → 激活 → 兑换授权 → RuntimeSession → 心跳/停止」完整主链。
+
+```bash
+# 1) 后端：pgserver（rootless PostgreSQL）+ alembic + 种子数据 + uvicorn :8000
+cd Pivot_Network_Backend/Plantform_Backend
+export PIVOT_PYTHON=/tmp/pivot-be-venv/bin/python
+bash scripts/start_local_demo.sh
+
+# 2) 前端：真实后端模式（另开终端）
+cd Pivot_Network_Frontend
+npm run dev:real        # → http://127.0.0.1:5173
+```
+
+- 演示账号：`demo@pivot.local / demo1234`
+- 停止后端：`bash scripts/stop_local_demo.sh`（`--with-db` 连 DB 一起停）
+- 详细步骤与排错：[后端本机演示文档](Pivot_Network_Backend/Plantform_Backend/docs/LOCAL_DEMO.md)、
+  [前后端联调说明](Pivot_Network_Frontend/文档/前后端联调说明.md)
+
 ## 架构概览
 
 ```mermaid
@@ -121,6 +151,8 @@ flowchart LR
 - [Apple 发布会风格设计系统](Pivot_Network_Frontend/文档/Apple发布会风格设计系统.md)
 - [需求调研与功能分析（重构依据）](Pivot_Network_Frontend/文档/需求调研与功能分析-苹果发布会风格重构.md)
 - [重构验收报告](Pivot_Network_Frontend/文档/重构验收报告.md)
+- [前后端联调说明（本机演示）](Pivot_Network_Frontend/文档/前后端联调说明.md)
+- [后端本机演示指南（无 Docker）](Pivot_Network_Backend/Plantform_Backend/docs/LOCAL_DEMO.md)
 - [项目最终总需求文档](Pivot_Network_Frontend/文档/项目最终总需求文档.md)
 - [汇报 PPT 文案](Pivot_Network_Frontend/文档/汇报PPT文案.md)
 - [后端 README](Pivot_Network_Backend/README.md)
@@ -130,6 +162,18 @@ flowchart LR
 - [MVP 技术方案](Pivot_Network_Backend/个人算力交易平台MVP技术方案.md)
 
 ## 更新日志
+
+### 2026-10-18 — V2.1 前后端真实联调（本机可演示）
+
+- 前端新增 API 真实模式：`client.ts`（/api/v1 + Bearer + 超时 + 错误）、`auth.ts`（演示账号自动登录）、
+  `mappers.ts`（后端嵌套 JSON → 前端平铺领域模型）、offers/nodes/orders/grants/sessions 六个 domain
+- `offers / monitor / session` 三个 store 接入真实接口并带失败回退；新增 `connection` store 展示「真实后端已连接 / 已回退演示数据」
+- 下单链路真实化：`POST /orders` → `POST /orders/{id}/activate` → `POST /access-grants/redeem-by-code` → RuntimeSession
+- 启动引导：自动登录 + 刷新页面恢复最近一次未结束会话（`GET /me/access-grants/active`）
+- 后端新增无 Docker 本机演示方案：pgserver（rootless PostgreSQL）、`demo_mode` 降级 Adapter、3 个种子 offer、
+  CORS 放行本机端口、`scripts/start_local_demo.sh / stop_local_demo.sh`、`docs/LOCAL_DEMO.md`
+- 验证：真实模式 7 路由 + 下单全链通过（61 次 /api/v1 请求全部 2xx，0 console error）；mock 模式回归全 PASS；
+  `npm run build` 与 `npm run build:demo` 均 0 error
 
 ### 2026-10-18 — V2 视觉重构（Apple 发布会风格）
 

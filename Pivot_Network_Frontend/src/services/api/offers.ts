@@ -1,28 +1,22 @@
 import type { Offer } from '../../types/domain'
-import { useMock } from './client'
+import { apiRequest, delay, useMock } from './client'
+import { mapOffer, mapOffers, type OfferListPayload } from './mappers'
 import { offersMock } from '../mock/platform.mock'
-
-function delay(ms = 200) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 export async function fetchOffers(): Promise<Offer[]> {
   if (useMock) {
     await delay()
     return structuredClone(offersMock)
   }
-  const res = await fetch('http://localhost:8000/offers')
-  if (!res.ok) throw new Error(`GET /offers ${res.status}`)
-  const json = await res.json()
-  return json.items ?? json
+  const payload = await apiRequest<OfferListPayload>('/offers', { auth: false })
+  return mapOffers(payload)
 }
 
 export async function fetchOfferById(id: string): Promise<Offer | null> {
   if (useMock) {
     await delay()
-    return structuredClone(offersMock.find((o) => o.id === id) ?? null)
+    return structuredClone(offersMock.find((offer) => offer.id === id) ?? null)
   }
-  const res = await fetch(`http://localhost:8000/offers/${id}`)
-  if (!res.ok) throw new Error(`GET /offers/${id} ${res.status}`)
-  return res.json()
+  const payload = await apiRequest<Parameters<typeof mapOffer>[0]>(`/offers/${encodeURIComponent(id)}`, { auth: false })
+  return mapOffer(payload)
 }

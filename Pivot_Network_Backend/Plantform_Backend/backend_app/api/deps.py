@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from backend_app.clients.adapter_client import AdapterClient
+from backend_app.clients.demo_adapter_client import DemoAdapterClient
 from backend_app.core.config import get_settings
 from backend_app.db.session import get_db, init_database
 from backend_app.repositories.auth_repository import AuthRepository
@@ -21,7 +22,16 @@ from backend_app.storage.memory_store import InMemoryStore
 
 @lru_cache
 def get_adapter_client() -> AdapterClient:
+    """Return the adapter client used by every adapter-facing service.
+
+    In local demo mode (``BACKEND_DEMO_MODE=true`` or an empty
+    ``BACKEND_ADAPTER_BASE_URL``) there is no Docker Swarm adapter process, so the
+    in-process :class:`DemoAdapterClient` is used instead.  Trade flow (redeem ->
+    runtime session) and read-only node views then work end-to-end on one machine.
+    """
     settings = get_settings()
+    if settings.demo_mode or not str(settings.adapter_base_url or "").strip():
+        return DemoAdapterClient()
     return AdapterClient(
         base_url=settings.adapter_base_url,
         token=settings.adapter_token,

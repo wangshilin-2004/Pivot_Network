@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,47 +29,138 @@ class TradeRepository:
         self.session.commit()
 
     def ensure_seed_offers(self) -> None:
-        existing = self.session.scalar(select(OfferModel.id).limit(1))
-        if existing is not None:
-            return
+        """Idempotently upsert the local-demo offer catalogue.
+
+        The three offers below are the ones the frontend demo catalogue shows
+        (A100 训练 / RTX 4090 推理 / L40S 多模态).  They use fixed ids so repeated
+        runs of ``scripts/seed_local_demo.py`` update instead of duplicating rows.
+        """
         now = datetime.now(UTC)
-        for offer in [
-            OfferRecord(
-                id="offer-medium-gpu",
-                title="Medium GPU Runtime",
-                status="listed",
-                seller_user_id="seed-seller-1",
-                seller_node_id="seed-node-1",
-                compute_node_id="seed-node-1",
-                offer_profile_id="profile-medium-gpu",
-                runtime_image_ref="registry.example.com/pivot/runtime:python-gpu-v1",
-                price_snapshot={"currency": "CNY", "hourly_price": 12.5},
-                capability_summary={"cpu_limit": 8, "memory_limit_gb": 32, "gpu_mode": "shared"},
-                inventory_state={"available": True, "reason": None},
-                source_join_session_id=None,
-                source_assessment_id=None,
-                published_at=now,
-                updated_at=now,
-            ),
-            OfferRecord(
-                id="offer-small-cpu",
-                title="Small CPU Runtime",
-                status="listed",
-                seller_user_id="seed-seller-2",
-                seller_node_id="seed-node-2",
-                compute_node_id="seed-node-2",
-                offer_profile_id="profile-small-cpu",
-                runtime_image_ref="registry.example.com/pivot/runtime:python-cpu-v1",
-                price_snapshot={"currency": "CNY", "hourly_price": 4.0},
-                capability_summary={"cpu_limit": 2, "memory_limit_gb": 8, "gpu_mode": None},
-                inventory_state={"available": True, "reason": None},
-                source_join_session_id=None,
-                source_assessment_id=None,
-                published_at=now,
-                updated_at=now,
-            ),
-        ]:
-            self.save_offer(offer)
+        entries = [
+            {
+                "id": "offer-a100-80g-tianjin",
+                "title": "A100 80GB 训练实例 · 天津",
+                "seller_user_id": "user_demo_seller_tianjin",
+                "seller_node_id": "tj-swarm-worker-01",
+                "compute_node_id": "compute-tj-a100-01",
+                "offer_profile_id": "profile-a100-80g-training",
+                "runtime_image_ref": "registry.pivot.local/runtime/pytorch-cuda12.4:latest",
+                "price_snapshot": {
+                    "currency": "CNY",
+                    "hourly_price": 42,
+                    "unit": "hour",
+                },
+                "capability_summary": {
+                    "gpu_model": "A100 80GB",
+                    "gpu_memory_gb": 80,
+                    "cpu_limit": 64,
+                    "memory_limit_gb": 256,
+                    "gpu_mode": "exclusive",
+                    "accelerator": "nvidia-a100",
+                    "gpu_count": 1,
+                    "storage_gb": 800,
+                    "bandwidth_mbps": 1000,
+                },
+                "inventory_state": {
+                    "available": True,
+                    "stock": 2,
+                    "region": "天津",
+                    "latency_ms": 14,
+                    "reason": None,
+                    "seller_name": "天津智算中心",
+                    "tags": ["训练", "A100", "天津"],
+                },
+            },
+            {
+                "id": "offer-rtx4090-beijing",
+                "title": "RTX 4090 推理实例 · 北京",
+                "seller_user_id": "user_demo_seller_beijing",
+                "seller_node_id": "bj-edge-node-03",
+                "compute_node_id": "compute-bj-4090-03",
+                "offer_profile_id": "profile-rtx4090-inference",
+                "runtime_image_ref": "registry.pivot.local/runtime/vllm-openai:latest",
+                "price_snapshot": {
+                    "currency": "CNY",
+                    "hourly_price": 18,
+                    "unit": "hour",
+                },
+                "capability_summary": {
+                    "gpu_model": "RTX 4090",
+                    "gpu_memory_gb": 24,
+                    "cpu_limit": 16,
+                    "memory_limit_gb": 64,
+                    "gpu_mode": "shared",
+                    "accelerator": "nvidia-rtx4090",
+                    "gpu_count": 1,
+                    "storage_gb": 300,
+                    "bandwidth_mbps": 500,
+                },
+                "inventory_state": {
+                    "available": True,
+                    "stock": 4,
+                    "region": "北京",
+                    "latency_ms": 9,
+                    "reason": None,
+                    "seller_name": "北京边缘云",
+                    "tags": ["推理", "RTX 4090", "北京"],
+                },
+            },
+            {
+                "id": "offer-l40s-shanghai",
+                "title": "L40S 多模态实例 · 上海",
+                "seller_user_id": "user_demo_seller_shanghai",
+                "seller_node_id": "sh-runtime-node-04",
+                "compute_node_id": "compute-sh-l40s-04",
+                "offer_profile_id": "profile-l40s-multimodal",
+                "runtime_image_ref": "registry.pivot.local/runtime/comfyui-multimodal:latest",
+                "price_snapshot": {
+                    "currency": "CNY",
+                    "hourly_price": 26,
+                    "unit": "hour",
+                },
+                "capability_summary": {
+                    "gpu_model": "L40S",
+                    "gpu_memory_gb": 48,
+                    "cpu_limit": 32,
+                    "memory_limit_gb": 128,
+                    "gpu_mode": "exclusive",
+                    "accelerator": "nvidia-l40s",
+                    "gpu_count": 1,
+                    "storage_gb": 600,
+                    "bandwidth_mbps": 800,
+                },
+                "inventory_state": {
+                    "available": True,
+                    "stock": 2,
+                    "region": "上海",
+                    "latency_ms": 12,
+                    "reason": None,
+                    "seller_name": "上海云图",
+                    "tags": ["多模态", "L40S", "上海"],
+                },
+            },
+        ]
+        for index, entry in enumerate(entries):
+            updated_at = now - timedelta(seconds=index)
+            self.save_offer(
+                OfferRecord(
+                    id=entry["id"],
+                    title=entry["title"],
+                    status="listed",
+                    seller_user_id=entry["seller_user_id"],
+                    seller_node_id=entry["seller_node_id"],
+                    compute_node_id=entry["compute_node_id"],
+                    offer_profile_id=entry["offer_profile_id"],
+                    runtime_image_ref=entry["runtime_image_ref"],
+                    price_snapshot=entry["price_snapshot"],
+                    capability_summary=entry["capability_summary"],
+                    inventory_state=entry["inventory_state"],
+                    source_join_session_id=None,
+                    source_assessment_id=None,
+                    published_at=updated_at,
+                    updated_at=updated_at,
+                )
+            )
         self.session.flush()
 
     def list_offers(self, *, status: str | None = None) -> list[OfferRecord]:

@@ -4,6 +4,9 @@
 
 V2 已按 **Apple 发布会风格** 重构：纯黑舞台、玻璃面板、发布会式排版、滚动驱动动效、⌘K 命令面板，并新增发布会式首页 `/`。设计契约见 [Apple发布会风格设计系统.md](文档/Apple发布会风格设计系统.md)。
 
+V2.1 支持 **mock / 真实后端双模式**：默认 `npm run dev` 用内置演示数据；`npm run dev:real` 直连本机 FastAPI，
+下单、授权、RuntimeSession 全部走真实接口。联调细节见 [前后端联调说明.md](文档/前后端联调说明.md)。
+
 ## 页面模块
 
 | 路由 | 页面 | 说明 |
@@ -68,19 +71,21 @@ src/
 │
 ├── stores/
 │   ├── offers.ts                        # 资源 / 算法 / 卖家草稿 / 下单
-│   ├── session.ts                       # 运行时会话 / 刷新 / 暂停 / 任务
-│   └── monitor.ts                       # 节点 / GPU 趋势 / 汇总
+│   ├── session.ts                       # 运行时会话 / 恢复 / 心跳 / 停止 / 任务
+│   ├── monitor.ts                       # 节点 / GPU 趋势 / 汇总
+│   └── connection.ts                    # 后端连接状态（真实后端 / 回退演示数据）
 │
 ├── services/
 │   ├── mock/platform.mock.ts            # Mock 数据层
 │   └── api/                             # API Service 层（mock/real 可切换）
-│       ├── client.ts                    #   基础客户端（useMock 开关）
-│       ├── auth.ts                      #   登录 / 注册 / 当前用户
+│       ├── client.ts                    #   基础客户端：/api/v1、Bearer、超时、ApiError、useMock 开关
+│       ├── auth.ts                      #   演示账号自动登录 / token 持久化 / 当前用户
+│       ├── mappers.ts                   #   后端 payload → 前端领域模型映射层
 │       ├── offers.ts                    #   资源列表 / 资源详情
 │       ├── orders.ts                    #   创建订单 / 激活订单
-│       ├── grants.ts                    #   有效授权 / 兑换授权
+│       ├── grants.ts                    #   有效授权 / 兑换授权（含演示 WireGuard 公钥）
 │       ├── sessions.ts                  #   会话查询 / 心跳 / 停止
-│       └── nodes.ts                     #   节点列表 / GPU 趋势
+│       └── nodes.ts                     #   节点列表 / Swarm 概览 / 趋势派生
 │
 └── views/
     ├── LandingView.vue                  # 发布会首页
@@ -98,22 +103,44 @@ src/
 npm install
 ```
 
-## 本地启动
+## 本地启动（两种模式）
 
 ```bash
-npm run dev
+# mock 模式（默认）：不依赖后端，使用内置演示数据，可完整浏览与演示交互
+npm run dev          # → http://127.0.0.1:5173
+
+# 真实后端模式：先启动本机后端，再运行
+#   后端启动见 ../Pivot_Network_Backend/Plantform_Backend/docs/LOCAL_DEMO.md
+npm run dev:real     # → http://127.0.0.1:5173（读取 .env.demo，VITE_USE_MOCK=false）
 ```
 
-访问 `http://127.0.0.1:5173`
+真实模式下：页面启动时自动登录演示账号 `demo@pivot.local / demo1234`，下单→激活→兑换授权→RuntimeSession
+全部走 `http://127.0.0.1:8000/api/v1`；后端不可用时自动回退演示数据，页脚显示当前数据来源。
+环境变量示例见 `.env.example` / `.env.demo`。
 
 ## 生产构建
 
 ```bash
-npm run build     # vue-tsc 严格模式 + vite build
-npm run preview   # 本地预览产物
+npm run build       # mock 模式产物（vue-tsc 严格模式 + vite build）
+npm run build:demo  # 真实后端模式产物（--mode demo）
+npm run preview     # 本地预览产物
 ```
 
+## 验收
+
+- 视觉与交互验收：[重构验收报告.md](文档/重构验收报告.md)（210 项自动断言，207 通过，结论「通过」）
+- 前后端联调验收：[前后端联调说明.md](文档/前后端联调说明.md)（真实模式 7 路由 + 下单全链，61 次 /api/v1 请求全部 2xx）
+
 ## 更新日志
+
+### 2026-10-18 — V2.1 真实后端联调
+
+- `services/api/` 重写：`client.ts` 统一拼 `/api/v1` 并支持 Bearer / 超时 / 错误详情；`auth.ts` 演示账号自动登录与 token 持久化；新增 `mappers.ts` 映射层（后端 `price_snapshot/capability_summary/inventory_state` → 前端平铺字段）
+- `stores/offers|monitor|session` 接入真实接口，失败自动回退 mock；新增 `stores/connection.ts` 记录「真实后端已连接 / 已回退演示数据」
+- 下单链路真实化：`POST /orders` → `POST /orders/{id}/activate` → `POST /access-grants/redeem-by-code` → RuntimeSession
+- `App.vue` 启动引导：自动登录 + 恢复最近未结束会话；下单失败 Toast 展示后端错误并保持抽屉打开
+- 新增 `.env.demo` / `.env.example` 与 `npm run dev:real`、`npm run build:demo`
+- 验证：真实模式 7 路由与下单全链通过，0 console error；mock 模式回归全 PASS
 
 ### 2026-10-18 — V2 视觉重构（Apple 发布会风格）
 

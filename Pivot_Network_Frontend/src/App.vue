@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import { useOfferStore } from './stores/offers'
+import { useSessionStore } from './stores/session'
+import { useConnectionStore } from './stores/connection'
+import { useMock } from './services/api/client'
+import { ensureAuth } from './services/api/auth'
 import CheckoutDrawer from './components/CheckoutDrawer.vue'
 import ToastNotification from './components/ToastNotification.vue'
 import SiteNav from './components/shell/SiteNav.vue'
@@ -10,11 +14,30 @@ import SiteFooter from './components/shell/SiteFooter.vue'
 const router = useRouter()
 const route = useRoute()
 const offers = useOfferStore()
+const sessions = useSessionStore()
+const connection = useConnectionStore()
 const toast = ref<InstanceType<typeof ToastNotification> | null>(null)
 
 const drawerOpen = ref(false)
+const submitting = ref(false)
 const algorithmId = ref(offers.algorithms[0]?.id ?? '')
 const duration = ref(180)
+
+/**
+ * 真实后端模式启动引导：自动登录演示账号，并尝试恢复上一次未结束的运行时会话。
+ * mock 模式直接跳过，页面使用内置数据。
+ */
+onMounted(async () => {
+  if (useMock) return
+  try {
+    const user = await ensureAuth()
+    await sessions.restoreActiveSession()
+    connection.markConnected(user?.email ?? null)
+  } catch (cause) {
+    connection.markDegraded(cause)
+    showToast(`后端连接失败，已回退演示数据：${cause instanceof Error ? cause.message : String(cause)}`)
+  }
+})
 
 function showToast(msg: string) {
   toast.value?.show(msg)
@@ -32,17 +55,24 @@ function closeCheckout() {
   offers.clearSelection()
 }
 
-function submitCheckout() {
-  if (!offers.selectedOffer) return
-  const ok = offers.createOrder({
-    offerId: offers.selectedOffer.id,
-    algorithmId: algorithmId.value,
-    duration: duration.value,
-  })
-  if (ok) {
-    drawerOpen.value = false
-    showToast('订单创建成功，运行会话已就绪')
-    router.push('/session')
+async function submitCheckout() {
+  if (!offers.selectedOffer || submitting.value) return
+  submitting.value = true
+  try {
+    const ok = await offers.createOrder({
+      offerId: offers.selectedOffer.id,
+      algorithmId: algorithmId.value,
+      duration: duration.value,
+    })
+    if (ok) {
+      drawerOpen.value = false
+      showToast(useMock ? '订单创建成功，运行会话已就绪' : '订单已提交，运行时会话由平台编排完成')
+      router.push('/session')
+    }
+  } catch (cause) {
+    showToast(`下单失败：${cause instanceof Error ? cause.message : String(cause)}`)
+  } finally {
+    submitting.value = false
   }
 }
 </script>
