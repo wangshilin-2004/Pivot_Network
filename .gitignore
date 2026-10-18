@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# 本地工具/编辑器配置（不随仓库分发）
+.claude/
+.vscode/
+.idea/
+
+# 临时产物
+*.log
+*.tmp

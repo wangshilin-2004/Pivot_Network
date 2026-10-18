@@ -11,27 +11,36 @@ defineProps<{ lines?: number }>()
 
 <style scoped>
 .skeleton-card {
-  padding: 1rem;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.6);
+  padding: 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
   border: 1px solid var(--line);
   display: grid;
-  gap: 0.6rem;
+  gap: 10px;
 }
 .skeleton-line {
-  height: 14px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, rgba(23, 50, 77, 0.06), rgba(23, 50, 77, 0.1), rgba(23, 50, 77, 0.06));
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.11),
+    rgba(255, 255, 255, 0.05)
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 .skeleton-title {
   width: 45%;
-  height: 18px;
-  margin-bottom: 0.3rem;
+  height: 17px;
+  margin-bottom: 4px;
 }
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 </style>

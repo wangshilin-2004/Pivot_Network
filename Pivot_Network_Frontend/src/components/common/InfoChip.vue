@@ -3,7 +3,7 @@ defineProps<{ tip: string }>()
 </script>
 
 <template>
-  <button class="info-chip" type="button">
+  <button class="info-chip" type="button" :aria-label="`说明：${tip}`">
     ?
     <span class="info-popover">{{ tip }}</span>
   </button>

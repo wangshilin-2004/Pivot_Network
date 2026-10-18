@@ -7,7 +7,9 @@ let timer: ReturnType<typeof setTimeout> | null = null
 function show(message: string) {
   toast.value = { message, visible: true }
   if (timer) clearTimeout(timer)
-  timer = setTimeout(() => { toast.value.visible = false }, 2200)
+  timer = setTimeout(() => {
+    toast.value.visible = false
+  }, 2600)
 }
 
 defineExpose({ show })
@@ -15,7 +17,12 @@ defineExpose({ show })
 
 <template>
   <Teleport to="body">
-    <div class="toast" :class="{ hidden: !toast.visible }">{{ toast.message }}</div>
+    <Transition name="toast">
+      <div v-if="toast.visible" class="toast" role="status">
+        <span class="toast-dot" aria-hidden="true" />
+        {{ toast.message }}
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -23,18 +30,40 @@ defineExpose({ show })
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 28px;
+  bottom: 32px;
   transform: translateX(-50%);
-  padding: 0.95rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
   border-radius: 999px;
-  background: rgba(23, 50, 77, 0.92);
-  color: white;
-  box-shadow: 0 16px 34px rgba(31, 73, 125, 0.18);
-  z-index: 40;
-  transition: opacity 200ms ease;
+  border: 1px solid var(--line-2);
+  background: rgba(24, 24, 27, 0.92);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: 0.875rem;
+  z-index: 180;
+  white-space: nowrap;
 }
-.toast.hidden {
+
+.toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(48, 209, 88, 0.8);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+}
+
+.toast-enter-from,
+.toast-leave-to {
   opacity: 0;
-  pointer-events: none;
+  transform: translateX(-50%) translateY(12px) scale(0.97);
 }
 </style>
